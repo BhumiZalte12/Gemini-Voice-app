@@ -6,25 +6,34 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { GeminiLiveClient } from './geminiLiveClient.js';
 
+// --- API Key Check ---
+// This block ensures the server stops if the API key is missing from your .env file.
+if (!process.env.GOOGLE_API_KEY) {
+  console.error("\n❌ ERROR: GOOGLE_API_KEY not found.");
+  console.error("Please create a .env file in the root of your project and add your key:\n");
+  console.error('GOOGLE_API_KEY="YOUR_API_KEY_HERE"\n');
+  process.exit(1); // Stop the application
+}
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-const ALLOWED = (process.env.CORS_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-app.use(cors({ origin: (origin, cb) => cb(null, !origin || ALLOWED.includes(origin)) }));
+app.use(cors({ origin: process.env.CORS_ORIGINS || `http://localhost:${PORT}` }));
 app.use(express.static(path.join(process.cwd(), 'client')));
 
-app.get('/healthz', (_, res) => res.json({ ok: true }));
-
-const server = app.listen(PORT, () => console.log(`Server on http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`✅ Server is running on http://localhost:${PORT}`));
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (browser) => {
+  console.log('🚀 Browser connected.');
   let gemini;
-  let playing = false;
 
   const systemPrompt = fs.readFileSync(path.join(process.cwd(), 'server/systemPrompt.txt'), 'utf8');
-  const url = (process.env.GEMINI_WS_URL || '').replace('${GOOGLE_API_KEY}', process.env.GOOGLE_API_KEY);
+  
+  // This is the correct WebSocket URL for the Gemini Live API service.
+  const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService/BidiGenerateContent?key=${process.env.GOOGLE_API_KEY}`;
+  
   gemini = new GeminiLiveClient({
     url,
     model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-native-audio-dialog',
@@ -36,43 +45,29 @@ wss.on('connection', (browser) => {
   };
 
   gemini.onEvent = (evt) => {
-    if (evt.type === 'response.output_audio.delta') {
-      playing = true;
-      // evt.data should contain base64 audio chunk (depends on API)
-      sendToBrowser({ type: 'audio_out', data: evt.data });
-    } else if (evt.type === 'response.completed') {
-      playing = false;
-      sendToBrowser({ type: 'response_completed' });
-    } else if (evt.type === 'response.interrupted') {
-      playing = false;
-      sendToBrowser({ type: 'response_interrupted' });
-    } else {
-      sendToBrowser(evt);
-    }
+    sendToBrowser(evt);
   };
 
   gemini.connect().catch((e) => {
-    sendToBrowser({ type: 'error', error: String(e) });
+    console.error("Fatal Gemini Connection Error:", e.message);
+    sendToBrowser({ type: 'error', error: String(e.message) });
+    browser.close();
   });
 
   browser.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
       switch (msg.type) {
-        case 'client.audio_chunk': {
-          gemini && gemini.sendAudioChunk(msg.data);
+        case 'client.audio_chunk':
+          gemini?.sendAudioChunk(msg.data);
           break;
-        }
-        case 'client.commit': {
-          gemini && gemini.commitUserUtterance();
+        case 'client.commit':
+          gemini?.commitUserUtterance();
           break;
-        }
-        case 'client.interrupt': {
-          playing = false;
-          gemini && gemini.cancelResponse();
+        case 'client.interrupt':
+          gemini?.cancelResponse();
           sendToBrowser({ type: 'response_interrupted' });
           break;
-        }
       }
     } catch (e) {
       sendToBrowser({ type: 'error', error: String(e) });
@@ -80,6 +75,7 @@ wss.on('connection', (browser) => {
   });
 
   browser.on('close', () => {
-    gemini && gemini.close();
+    console.log('🔴 Browser disconnected.');
+    gemini?.close();
   });
 });

@@ -1,6 +1,9 @@
 import WebSocket from 'ws';
-import { decode as b64ToArrayBuffer, encode as arrayBufferToB64 } from 'base64-arraybuffer';
 
+/**
+ * A client for the Gemini Live API using the BidiGenerateContent service.
+ * This version uses the correct endpoint and message structure for native audio dialog.
+ */
 export class GeminiLiveClient {
   constructor({ url, model, systemPrompt }) {
     this.url = url;
@@ -34,17 +37,23 @@ export class GeminiLiveClient {
           const msg = JSON.parse(raw.toString());
           if (msg.type === 'session.created') {
             this.ready = true;
+            console.log("✅ Gemini session created successfully.");
             resolve();
             return;
           }
-          this.onEvent && this.onEvent(msg);
+          if (this.onEvent) {
+            this.onEvent(msg);
+          }
         } catch (e) {
-          this.onBinary && this.onBinary(raw);
+            console.error("Could not parse message from Gemini:", e);
         }
       });
 
       this.ws.on('error', reject);
-      this.ws.on('close', () => { this.ready = false; });
+      this.ws.on('close', () => {
+        this.ready = false;
+        console.log("🔌 Disconnected from Gemini Live API.");
+      });
     });
   }
 
@@ -72,6 +81,8 @@ export class GeminiLiveClient {
   }
 
   close() {
-    try { this.ws && this.ws.close(); } catch {}
+    if (this.ws) {
+      this.ws.close();
+    }
   }
 }

@@ -3,47 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Rev (Clone) — Gemini Live</title>
+  <title>Revolt AI Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; font: 16px/1.4 system-ui, sans-serif; background: #0b0d10; color: #e6e9ef; }
-    .wrap { max-width: 880px; margin: 32px auto; padding: 0 16px; }
-    .card { background: #12151a; border: 1px solid #1f232b; border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
-    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    button { background: #2c7be5; color: #fff; border: 0; padding: 10px 16px; border-radius: 12px; cursor: pointer; font-weight: 600; }
-    button[disabled] { opacity: .5; cursor: not-allowed; }
-    .meter { height: 8px; background: #0f1318; border-radius: 8px; overflow: hidden; margin: 6px 0; }
-    .bar { height: 8px; width: 0%; background: #8ec5ff; }
-    .logs { max-height: 240px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0d1117; padding:10px; border-radius:8px; }
-    select, input[type=text] { background:#0f1318; color:#e6e9ef; border:1px solid #1f232b; border-radius:8px; padding:8px; }
+    body { font-family: 'Inter', sans-serif; background-color: #111827; }
+    .pulse-ring { animation: pulse-ring-animation 1.5s infinite; }
+    @keyframes pulse-ring-animation {
+      0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { box-shadow: 0 0 0 25px rgba(239, 68, 68, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
   </style>
 </head>
-<body>
-  <div class="wrap">
-    <h2>Rev — Voice Chat (Gemini Live)</h2>
-    <div class="card">
-      <div class="row">
-        <button id="btnConnect">Connect</button>
-        <button id="btnMic" disabled>Hold to Talk</button>
-        <button id="btnStop" disabled>Stop</button>
-        <label>Model:
-          <select id="model">
-            <option value="gemini-2.5-flash-preview-native-audio-dialog">2.5 Flash Native Audio (preview)</option>
-            <option value="gemini-live-2.5-flash-preview">2.5 Flash Live (preview)</option>
-            <option value="gemini-2.0-flash-live-001">2.0 Flash Live (dev)</option>
-          </select>
-        </label>
-      </div>
-      <div class="meter"><div class="bar" id="vu"></div></div>
-      <div class="row">
-        <input id="lang" type="text" placeholder="Preferred language (e.g., en, hi, mr)" style="flex:1"/>
-      </div>
+<body class="flex items-center justify-center min-h-screen text-white">
+    <div class="text-center p-4 max-w-md mx-auto">
+        <h1 class="text-4xl font-bold mb-4">Revolt AI Assistant</h1>
+        <p id="status" class="text-lg text-gray-400 mb-10 h-6">Press and hold the icon to speak</p>
+
+        <button id="micButton" class="w-32 h-32 bg-blue-600 rounded-full flex items-center justify-center transition-all duration-300 focus:outline-none shadow-xl transform active:scale-90">
+            <svg id="mic-icon" xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm5 2.293V4a1 1 0 10-2 0v2.293a2.999 2.999 0 01.08 4.414l-.08.086V12a1 1 0 102 0v-1.207a2.999 2.999 0 01-.08-4.414l.08-.086zM5 8a1 1 0 000 2h1v1.207A5.002 5.002 0 009 16.965V18h2v-1.035a5.002 5.002 0 004-4.758V10h1a1 1 0 100-2h-1V7a5 5 0 00-5-5H9a5 5 0 00-5 5v1H5z" />
+            </svg>
+        </button>
+        
+        <div id="logs" class="mt-8 text-sm text-left text-gray-500 h-24 overflow-y-auto bg-gray-800 p-2 rounded-lg"></div>
     </div>
 
-    <h3>Events</h3>
-    <div class="logs" id="logs"></div>
-  </div>
-
-  <script type="module" src="./app.js"></script>
+    <script type="module" src="/app.js"></script>
 </body>
 </html>

@@ -1,97 +1,127 @@
-const logEl = document.getElementById('logs');
-const btnConnect = document.getElementById('btnConnect');
-const btnMic = document.getElementById('btnMic');
-const btnStop = document.getElementById('btnStop');
-const vu = document.getElementById('vu');
-const modelSel = document.getElementById('model');
-const langInput = document.getElementById('lang');
+const micButton = document.getElementById('micButton');
+const statusElement = document.getElementById('status');
+const logsElement = document.getElementById('logs');
 
 let ws;
-let ctx;
+let audioContext;
 let micNode;
-let captureNode;
 let playbackNode;
-let speaking = false;
+let isSpeaking = false;
+let isRecording = false;
 
-function log(msg) {
-  const time = new Date().toLocaleTimeString();
-  logEl.innerHTML = `<div>[${time}] ${msg}</div>` + logEl.innerHTML;
+function log(message) {
+  console.log(message);
+  const p = document.createElement('p');
+  p.textContent = `> ${message}`;
+  logsElement.insertBefore(p, logsElement.firstChild);
 }
 
-async function setupAudio() {
-  ctx = new AudioContext({ sampleRate: 48000 });
-  await ctx.audioWorklet.addModule('./worklets/mic-capture-processor.js');
-  await ctx.audioWorklet.addModule('./worklets/pcm-playback-processor.js');
+async function connect() {
+  log('Connecting to server...');
+  const url = `${location.origin.replace('http', 'ws')}/ws`;
+  ws = new WebSocket(url);
 
-  playbackNode = new AudioWorkletNode(ctx, 'pcm-playback-processor');
-  playbackNode.connect(ctx.destination);
+  ws.onopen = () => {
+    log('✅ Connected. Hold the button to talk.');
+    micButton.disabled = false;
+  };
+  ws.onclose = () => log('❌ Disconnected.');
+  ws.onerror = () => log('Error connecting to server.');
 
-  playbackNode.port.onmessage = (e) => {
-    if (e.data?.type === 'vu') {
-      vu.style.width = Math.min(100, Math.max(0, e.data.value * 100)) + '%';
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    switch (msg.type) {
+      case 'response.output_audio.delta':
+        isSpeaking = true;
+        updateUIMode('speaking');
+        playbackNode?.port.postMessage({ type: 'append', base64: msg.data });
+        break;
+      case 'response.completed':
+      case 'response.interrupted':
+        isSpeaking = false;
+        playbackNode?.port.postMessage({ type: 'flush' });
+        if (!isRecording) updateUIMode('idle');
+        break;
+      case 'error':
+        log(`Error: ${msg.error}`);
+        break;
     }
   };
 }
 
-async function startMic() {
-  await setupAudio();
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  micNode = new MediaStreamAudioSourceNode(ctx, { mediaStream: stream });
-  captureNode = new AudioWorkletNode(ctx, 'mic-capture-processor', {
-    processorOptions: { targetSampleRate: 16000 }
-  });
-  micNode.connect(captureNode);
+async function setupAudio() {
+  if (audioContext) return;
+  audioContext = new AudioContext({ sampleRate: 48000 });
+  // You must have the worklet files in the `client/worklets` directory
+  await audioContext.audioWorklet.addModule('./worklets/mic-capture-processor.js');
+  await audioContext.audioWorklet.addModule('./worklets/pcm-playback-processor.js');
 
-  captureNode.port.onmessage = (e) => {
+  playbackNode = new AudioWorkletNode(audioContext, 'pcm-playback-processor');
+  playbackNode.connect(audioContext.destination);
+}
+
+async function startMic() {
+  if (isRecording) return;
+  isRecording = true;
+  await setupAudio();
+  // Ensure audio context is running
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  if (isSpeaking) {
+    log("🎤 Interrupting AI...");
+    ws?.send(JSON.stringify({ type: 'client.interrupt' }));
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  micNode = new AudioWorkletNode(audioContext, 'mic-capture-processor');
+  const mediaStreamSource = audioContext.createMediaStreamSource(stream);
+  mediaStreamSource.connect(micNode);
+
+  micNode.port.onmessage = (e) => {
     if (e.data?.type === 'chunk') {
       ws?.send(JSON.stringify({ type: 'client.audio_chunk', data: e.data.base64 }));
     }
   };
+  updateUIMode('listening');
 }
 
-function commitUtterance() {
+function stopMic() {
+  if (!isRecording) return;
+  isRecording = false;
+  micNode?.port.postMessage({ type: 'stop' });
+  micNode?.disconnect();
   ws?.send(JSON.stringify({ type: 'client.commit' }));
+  if (!isSpeaking) updateUIMode('processing');
 }
 
-function interrupt() {
-  ws?.send(JSON.stringify({ type: 'client.interrupt' }));
-  speaking = false;
+function updateUIMode(mode) {
+  micButton.classList.remove('pulse-ring', 'bg-red-600', 'bg-blue-600', 'bg-gray-500');
+  switch (mode) {
+    case 'listening':
+      statusElement.textContent = 'Listening...';
+      micButton.classList.add('bg-red-600', 'pulse-ring');
+      break;
+    case 'speaking':
+      statusElement.textContent = 'Rev is speaking...';
+      micButton.classList.add('bg-gray-500');
+      break;
+    case 'processing':
+      statusElement.textContent = 'Thinking...';
+      micButton.classList.add('bg-gray-500');
+      break;
+    case 'idle':
+    default:
+      statusElement.textContent = 'Press and hold the icon to speak';
+      micButton.classList.add('bg-blue-600');
+      break;
+  }
 }
 
-btnConnect.onclick = async () => {
-  const url = `${location.origin.replace('http', 'ws')}/ws`;
-  ws = new WebSocket(url);
-  ws.onopen = () => {
-    log('Connected to Node proxy. Hold and speak.');
-    btnMic.disabled = false; btnStop.disabled = false; btnConnect.disabled = true;
-  };
-  ws.onmessage = (ev) => {
-    try {
-      const msg = JSON.parse(ev.data);
-      if (msg.type === 'audio_out') {
-        speaking = true;
-        playbackNode.port.postMessage({ type: 'append', base64: msg.data, sampleRate: 24000 });
-      } else if (msg.type === 'response_completed' || msg.type === 'response_interrupted') {
-        speaking = false;
-        playbackNode.port.postMessage({ type: 'flush' });
-      } else if (msg.type === 'error') {
-        log('Error: ' + msg.error);
-      } else if (msg.type) {
-        log(msg.type);
-      }
-    } catch (e) {
-      log('non-json message');
-    }
-  };
-  ws.onclose = () => log('WS closed');
-};
+micButton.onmousedown = startMic;
+micButton.onmouseup = stopMic;
+micButton.onmouseleave = stopMic; 
 
-btnMic.onmousedown = async () => {
-  if (!ctx || ctx.state !== 'running') await startMic();
-};
-btnMic.onmouseup = () => commitUtterance();
-btnMic.onmouseleave = () => commitUtterance();
-
-btnStop.onclick = () => {
-  interrupt();
-};
+micButton.disabled = true;
+connect();
