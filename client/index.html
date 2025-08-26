@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Rev (Clone) — Gemini Live</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 16px/1.4 system-ui, sans-serif; background: #0b0d10; color: #e6e9ef; }
+    .wrap { max-width: 880px; margin: 32px auto; padding: 0 16px; }
+    .card { background: #12151a; border: 1px solid #1f232b; border-radius: 16px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    button { background: #2c7be5; color: #fff; border: 0; padding: 10px 16px; border-radius: 12px; cursor: pointer; font-weight: 600; }
+    button[disabled] { opacity: .5; cursor: not-allowed; }
+    .meter { height: 8px; background: #0f1318; border-radius: 8px; overflow: hidden; margin: 6px 0; }
+    .bar { height: 8px; width: 0%; background: #8ec5ff; }
+    .logs { max-height: 240px; overflow: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#0d1117; padding:10px; border-radius:8px; }
+    select, input[type=text] { background:#0f1318; color:#e6e9ef; border:1px solid #1f232b; border-radius:8px; padding:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h2>Rev — Voice Chat (Gemini Live)</h2>
+    <div class="card">
+      <div class="row">
+        <button id="btnConnect">Connect</button>
+        <button id="btnMic" disabled>Hold to Talk</button>
+        <button id="btnStop" disabled>Stop</button>
+        <label>Model:
+          <select id="model">
+            <option value="gemini-2.5-flash-preview-native-audio-dialog">2.5 Flash Native Audio (preview)</option>
+            <option value="gemini-live-2.5-flash-preview">2.5 Flash Live (preview)</option>
+            <option value="gemini-2.0-flash-live-001">2.0 Flash Live (dev)</option>
+          </select>
+        </label>
+      </div>
+      <div class="meter"><div class="bar" id="vu"></div></div>
+      <div class="row">
+        <input id="lang" type="text" placeholder="Preferred language (e.g., en, hi, mr)" style="flex:1"/>
+      </div>
+    </div>
+
+    <h3>Events</h3>
+    <div class="logs" id="logs"></div>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
